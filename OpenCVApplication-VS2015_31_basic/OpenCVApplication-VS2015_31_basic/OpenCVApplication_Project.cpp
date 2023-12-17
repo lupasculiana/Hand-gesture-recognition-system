@@ -462,21 +462,36 @@ int knnClassifier(std::vector<float> hist, Mat_<float> X, Mat_<uchar> Y, int k, 
 }
 
 void knn() {
-	const int nrclasses = 12;
-	char classes[nrclasses][15] = { "ok", "one", "palm", "peace", "rock", "fist", "call", "dislike", "four", "stop", "three", "two"};
+	const int nrclasses = 10;
+	char classes[nrclasses][20] = { "call_me", "fingers_crossed", "okay", "paper", "peace", "rock", "rock_on", "scissor", "thumbs", "up" };
 
-	Mat_<float> X(672, 256 * 3, CV_64FC1);
-	Mat_<int> Y(672, 1, CV_8UC1);
+	// Dynamically determine the size of matrices X and Y based on the number of images
+	int totalImages = 0;
+	for (int c = 0; c < nrclasses; c++) {
+		int fileNr = 1;
+		char fname[MAX_PATH];
+		while (1) {
+			sprintf(fname, "train/%s/%d.jpeg", classes[c], fileNr++);
+			Mat img = imread(fname);
+			if (img.cols == 0)
+				break;
+			totalImages++;
+		}
+	}
 
-	char fname[MAX_PATH];
+	Mat_<float> X(totalImages, 256 * 3, CV_64FC1);
+	Mat_<int> Y(totalImages, 1, CV_8UC1);
+
 	int rowX = 0;
 	for (int c = 0; c < nrclasses; c++) {
-		int fileNr = 0;
+		int fileNr = 1;
+		char fname[MAX_PATH];
 		while (1) {
-			sprintf(fname, "train/%s/%06d.jpeg", classes[c], fileNr++);
+			sprintf(fname, "train/%s/%d.jpeg", classes[c], fileNr++);
 			printf("%s\n", fname);
 			Mat img = imread(fname);
-			if (img.cols == 0) break;
+			if (img.cols == 0)
+				break;
 
 			std::vector<float> hist = calcHist(img, 256);
 
@@ -487,22 +502,24 @@ void knn() {
 		}
 	}
 
+	// The rest of your code remains unchanged
 	char fnameTest[MAX_PATH];
 	bool go = true;
-	int c = 0, fileNr = 0, totalPredicted = 0, correctlyPredicted = 0, k = 10;
+	int c = 0, fileNr = 1, totalPredicted = 0, correctlyPredicted = 0, k = 10;
 	while (go) {
 		c++;
 		if (c >= nrclasses) {
 			go = false;
 			break;
 		}
-		fileNr = 0;
+		fileNr = 1;
 
 		while (1) {
-			sprintf(fnameTest, "test/%s/%06d.jpeg", classes[c], fileNr++);
+			sprintf(fnameTest, "test/%s/%d.jpeg", classes[c], fileNr++);
 			printf("%s\n", fnameTest);
 			Mat img = imread(fnameTest);
-			if (img.cols == 0) break;
+			if (img.cols == 0)
+				break;
 
 			if (img.cols == 0 && c >= nrclasses) {
 				go = false;
@@ -521,10 +538,13 @@ void knn() {
 
 	float acc = (100 * correctlyPredicted) / totalPredicted;
 
-	std::cout << acc << "%";
+	std::cout << "Accuracy: " << acc << "%" << std::endl;
+	std::cout << "Correctly Predicted: " << correctlyPredicted << std::endl;
+	std::cout << "Total Predicted: " << totalPredicted << std::endl;
+
+	// Keep the console window open
 	while (1);
 }
-
 int main()
 {
 	int op;
