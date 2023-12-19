@@ -542,9 +542,33 @@ void knn() {
 	std::cout << "Correctly Predicted: " << correctlyPredicted << std::endl;
 	std::cout << "Total Predicted: " << totalPredicted << std::endl;
 
+	//function test
+	char fname[MAX_PATH];
+	while (openFileDlg(fname)) {
+		// Read the user-provided image
+		cv::Mat img = cv::imread(fname);
+		if (img.empty()) {
+			std::cerr << "Error: Could not open image." << std::endl;
+			return;
+		}
+
+		// Calculate histogram for the user-provided image
+		std::vector<float> hist = calcHist(img, 256);
+
+		// Classify the image using the k-NN model
+		int predictedClass = knnClassifier(hist, X, Y, k, nrclasses);
+
+		// Print the predicted class to the console
+		std::cout << "Predicted Class: " << classes[predictedClass] << std::endl;
+
+		// Display the image
+		cv::imshow("User-provided Image", img);
+		cv::waitKey();
+	}
 	// Keep the console window open
 	while (1);
 }
+
 int main()
 {
 	int op;
