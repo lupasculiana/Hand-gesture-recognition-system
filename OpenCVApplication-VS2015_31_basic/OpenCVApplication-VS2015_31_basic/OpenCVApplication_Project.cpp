@@ -465,7 +465,6 @@ void knn() {
 	const int nrclasses = 10;
 	char classes[nrclasses][20] = { "call_me", "fingers_crossed", "okay", "paper", "peace", "rock", "rock_on", "scissor", "thumbs", "up" };
 
-	// Dynamically determine the size of matrices X and Y based on the number of images
 	int totalImages = 0;
 	for (int c = 0; c < nrclasses; c++) {
 		int fileNr = 1;
@@ -502,7 +501,6 @@ void knn() {
 		}
 	}
 
-	// The rest of your code remains unchanged
 	char fnameTest[MAX_PATH];
 	bool go = true;
 	int c = 0, fileNr = 1, totalPredicted = 0, correctlyPredicted = 0, k = 10;
@@ -545,27 +543,25 @@ void knn() {
 	//function test
 	char fname[MAX_PATH];
 	while (openFileDlg(fname)) {
-		// Read the user-provided image
 		cv::Mat img = cv::imread(fname);
 		if (img.empty()) {
 			std::cerr << "Error: Could not open image." << std::endl;
 			return;
 		}
 
-		// Calculate histogram for the user-provided image
-		std::vector<float> hist = calcHist(img, 256);
+	//	cv::Mat gray;
+	//	cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+	//	cv::Mat binary;
+	//	cv::threshold(gray, binary, 128, 255, cv::THRESH_BINARY);
 
-		// Classify the image using the k-NN model
+		std::vector<float> hist = calcHist(img, 256);
 		int predictedClass = knnClassifier(hist, X, Y, k, nrclasses);
 
-		// Print the predicted class to the console
 		std::cout << "Predicted Class: " << classes[predictedClass] << std::endl;
 
-		// Display the image
 		cv::imshow("User-provided Image", img);
 		cv::waitKey();
 	}
-	// Keep the console window open
 	while (1);
 }
 
