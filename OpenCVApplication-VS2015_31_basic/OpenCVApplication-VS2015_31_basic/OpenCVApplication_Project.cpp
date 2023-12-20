@@ -408,10 +408,6 @@ std::vector<float> calcHist(Mat_<Vec3b> img, int m) {
 					}
 				}
 			}
-
-			/*hist.at(img(i, j)[0] )++;
-			hist.at(img(i, j)[1] + 256)++;
-			hist.at(img(i, j)[2] + 512)++;*/
 		}
 	}
 
@@ -435,10 +431,8 @@ int knnClassifier(std::vector<float> hist, Mat_<float> X, Mat_<uchar> Y, int k, 
 	for (int i = 0; i < X.rows; i++) {
 		float distance = 0;
 		for (int j = 0; j < X.cols; j++) {
-			//distance += pow(hist.at(j) - X(i, j), 2);
 			distance += abs(hist.at(j) - X(i, j));
 		}
-		//v.push_back({ sqrt(distance), Y(i) });
 		v.push_back({ distance, Y(i) });
 	}
 
