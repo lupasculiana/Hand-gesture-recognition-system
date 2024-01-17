@@ -3,7 +3,10 @@
 
 #include "stdafx.h"
 #include "common.h"
-
+#include <vector>
+#include <algorithm>
+#include <limits.h>
+#include <cmath>
 
 void testOpenImage()
 {
@@ -388,76 +391,80 @@ void testMouseClick()
 	}
 }
 
-std::vector<float> calcHist(Mat_<Vec3b> img, int m) {
-
-	std::vector<float> hist;
-	int binSize = 256 / m;
-
-	for (int i = 0; i < m * 3; i++) {
-		hist.push_back(0);
+std::vector<double> calculateHuMoments(cv::Mat image) {
+	// pt cazurile in care imaginea nu este binara
+	if (image.channels() > 1) {
+			cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
 	}
+	cv::threshold(image, image, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-	for (int i = 0; i < img.rows; i++) {
-		for (int j = 0; j < img.cols; j++) {
+	std::vector<std::vector<cv::Point>> contours;
+	std::vector<cv::Vec4i> hierarchy;
 
-			Vec3b pixel = img(i, j);
-			for (int k = 0; k < m; k++) {
-				for (int l = 0; l < 2; l++) {
-					if (pixel[l] >= k * m && pixel[l] < m * (k + 1)) {
-						hist.at(pixel[l] + m * l)++;
-					}
-				}
-			}
+	cv::findContours(image, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+	double maxArea = 0;
+	std::vector<cv::Point> largestContour;
+	for (size_t i = 0; i < contours.size(); i++) {
+		double area = cv::contourArea(contours[i]);
+		if (area > maxArea) {
+			maxArea = area;
+			largestContour = contours[i];
 		}
 	}
 
-	int area = img.rows * img.cols;
-	for (int i = 0; i < m * 3; i++) {
-		hist.at(i) /= area;
+	cv::Moments moments = cv::moments(largestContour);
+
+	double huMoments[7];
+	cv::HuMoments(moments, huMoments);
+
+	std::vector<double> huMomentsVector(std::begin(huMoments), std::end(huMoments));
+
+	for (double& huMoment : huMomentsVector) {
+		if (huMoment != 0) {
+			huMoment = -1 * copysign(1.0, huMoment) * log10(std::abs(huMoment));
+		}
 	}
 
-	return hist;
+	return huMomentsVector;
 }
 
-int knnClassifier(std::vector<float> hist, Mat_<float> X, Mat_<uchar> Y, int k, int nbClasses) {
-
-	std::vector<std::tuple<double, int>> v;
-	std::vector<int> voting;
-
-	for (int i = 0; i < nbClasses; i++) {
-		voting.push_back(0);
-	}
+int knnClassifier(std::vector<double> features, cv::Mat_<float> X, cv::Mat_<uchar> Y, int k, int nbClasses) {
+	std::vector<std::tuple<double, int>> distances;
+	std::vector<int> voting(nbClasses, 0);
 
 	for (int i = 0; i < X.rows; i++) {
-		float distance = 0;
+		double distance = 0.0;
 		for (int j = 0; j < X.cols; j++) {
-			distance += abs(hist.at(j) - X(i, j));
+			distance += std::pow(features[j] - X(i, j), 2);
 		}
-		v.push_back({ distance, Y(i) });
+		distance = std::sqrt(distance);
+		distances.push_back(std::make_tuple(distance, static_cast<int>(Y(i))));
 	}
 
-	std::sort(v.begin(), v.end());
+	std::sort(distances.begin(), distances.end());
 
 	for (int i = 0; i < k; i++) {
-		int index = std::get<1>(v.at(i));
-		voting.at(index)++;
+		int index = std::get<1>(distances[i]);
+		voting[index]++;
 	}
 
-	int maxim = 0, predictedClass = 0;
-	for (int i = 0; i < voting.size(); i++) {
-		if (voting.at(i) > maxim) {
-			maxim = voting.at(i);
+	int predictedClass = 0;
+	int maxVotes = 0;
+	for (int i = 0; i < nbClasses; i++) {
+		if (voting[i] > maxVotes) {
+			maxVotes = voting[i];
 			predictedClass = i;
 		}
 	}
 
 	return predictedClass;
-
 }
 
 void knn() {
 	const int nrclasses = 10;
 	char classes[nrclasses][20] = { "call_me", "fingers_crossed", "okay", "paper", "peace", "rock", "rock_on", "scissor", "thumbs", "up" };
+	int confusionMatrix[nrclasses][nrclasses] = { 0 };
 
 	int totalImages = 0;
 	for (int c = 0; c < nrclasses; c++) {
@@ -472,8 +479,8 @@ void knn() {
 		}
 	}
 
-	Mat_<float> X(totalImages, 256 * 3, CV_64FC1);
-	Mat_<int> Y(totalImages, 1, CV_8UC1);
+	Mat_<float> X(totalImages, 7);
+	Mat_<int> Y(totalImages, 1);
 
 	int rowX = 0;
 	for (int c = 0; c < nrclasses; c++) {
@@ -482,14 +489,14 @@ void knn() {
 		while (1) {
 			sprintf(fname, "train/%s/%d.jpeg", classes[c], fileNr++);
 			printf("%s\n", fname);
-			Mat img = imread(fname);
+			Mat img = imread(fname, IMREAD_GRAYSCALE);
 			if (img.cols == 0)
 				break;
 
-			std::vector<float> hist = calcHist(img, 256);
+			std::vector<double> huMoments = calculateHuMoments(img);
 
-			for (int d = 0; d < hist.size(); d++)
-				X(rowX, d) = hist.at(d);
+			for (int d = 0; d < huMoments.size(); d++)
+				X(rowX, d) = huMoments[d];
 			Y(rowX) = c;
 			rowX++;
 		}
@@ -509,7 +516,7 @@ void knn() {
 		while (1) {
 			sprintf(fnameTest, "test/%s/%d.jpeg", classes[c], fileNr++);
 			printf("%s\n", fnameTest);
-			Mat img = imread(fnameTest);
+			Mat img = imread(fnameTest, IMREAD_GRAYSCALE); 
 			if (img.cols == 0)
 				break;
 
@@ -518,9 +525,10 @@ void knn() {
 				break;
 			}
 
-			std::vector<float> hist = calcHist(img, 256);
+			std::vector<double> huMoments = calculateHuMoments(img);
 
-			int predictedClass = knnClassifier(hist, X, Y, k, nrclasses);
+			int predictedClass = knnClassifier(huMoments, X, Y, k, nrclasses);
+			confusionMatrix[c][predictedClass]++;
 			totalPredicted++;
 			if (predictedClass == c) {
 				correctlyPredicted++;
@@ -528,28 +536,30 @@ void knn() {
 		}
 	}
 
-	float acc = (100 * correctlyPredicted) / totalPredicted;
+	float acc = (100.0f * correctlyPredicted) / totalPredicted;
 
 	std::cout << "Accuracy: " << acc << "%" << std::endl;
 	std::cout << "Correctly Predicted: " << correctlyPredicted << std::endl;
 	std::cout << "Total Predicted: " << totalPredicted << std::endl;
+	std::cout << "Confusion Matrix:" << std::endl;
+	for (int i = 0; i < nrclasses; i++) {
+		for (int j = 0; j < nrclasses; j++) {
+			std::cout << confusionMatrix[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
 
 	//function test
 	char fname[MAX_PATH];
 	while (openFileDlg(fname)) {
-		cv::Mat img = cv::imread(fname);
+		cv::Mat img = cv::imread(fname, IMREAD_GRAYSCALE);
 		if (img.empty()) {
 			std::cerr << "Error: Could not open image." << std::endl;
 			return;
 		}
 
-	//	cv::Mat gray;
-	//	cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
-	//	cv::Mat binary;
-	//	cv::threshold(gray, binary, 128, 255, cv::THRESH_BINARY);
-
-		std::vector<float> hist = calcHist(img, 256);
-		int predictedClass = knnClassifier(hist, X, Y, k, nrclasses);
+		std::vector<double> huMoments = calculateHuMoments(img);
+		int predictedClass = knnClassifier(huMoments, X, Y, k, nrclasses);
 
 		std::cout << "Predicted Class: " << classes[predictedClass] << std::endl;
 
